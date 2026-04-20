@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+from time import sleep
 from typing import Optional
 
 import typer
@@ -10,7 +11,7 @@ from . import db
 from .config import Settings
 from .immich import ImmichClient
 from .preview import PreviewApp
-from .scoring import VisionScorer, apply_burst_dedup, run_scoring
+from .scoring import VisionScorer, finalize_scores, run_scoring
 from .sync import apply_archive, sync_trial_albums, sync_trial_tags
 
 app = typer.Typer(help="Local AI scoring and preview workflow for Immich.")
@@ -67,6 +68,52 @@ def score(limit: int = typer.Option(1000, min=1)):
         typer.echo(f"Scored {processed} assets.")
 
 
+@app.command("score-queue")
+def score_queue(
+    batch_size: int = typer.Option(1000, min=1),
+    finalize_every: int = typer.Option(20, min=1),
+    idle_sleep: int = typer.Option(30, min=1),
+    once: bool = typer.Option(False, help="Exit after current backlog drains."),
+):
+    """Continuously score assets in batches and periodically recompute grades/dedupe."""
+    with app_context() as (settings, conn, client):
+        project_root = settings.db_path.parent
+        scorer = VisionScorer(
+            settings.cache_dir,
+            helper_source=project_root / "tools" / "vision_probe.swift",
+            helper_binary=settings.preview_dir / "vision_probe",
+        )
+        batches_since_finalize = 0
+        total_processed = 0
+        while True:
+            rows = db.unscored_assets(conn, batch_size)
+            if not rows:
+                if batches_since_finalize:
+                    stats = finalize_scores(conn, scorer=scorer)
+                    typer.echo(f"Finalize complete: {stats}")
+                    batches_since_finalize = 0
+                if once:
+                    typer.echo(f"Score queue drained after processing {total_processed} assets.")
+                    return
+                typer.echo(f"No unscored assets found. Sleeping {idle_sleep}s.")
+                sleep(idle_sleep)
+                continue
+
+            processed = run_scoring(conn, scorer, client, rows, finalize=False)
+            total_processed += processed
+            batches_since_finalize += 1
+            total, scored = conn.execute(
+                "SELECT COUNT(*), SUM(raw_score IS NOT NULL) FROM assets"
+            ).fetchone()
+            typer.echo(
+                f"Scored batch={processed} total_processed={total_processed} total={total} scored={scored}"
+            )
+            if batches_since_finalize >= finalize_every:
+                stats = finalize_scores(conn, scorer=scorer)
+                typer.echo(f"Finalize complete: {stats}")
+                batches_since_finalize = 0
+
+
 @app.command("sync-trial")
 def sync_trial():
     """Create trial albums inside Immich for previewing before archive writeback."""
@@ -85,9 +132,24 @@ def dedupe():
             helper_source=project_root / "tools" / "vision_probe.swift",
             helper_binary=settings.preview_dir / "vision_probe",
         )
-        db.normalize_scores(conn, db.all_scored_assets(conn))
-        stats = apply_burst_dedup(conn, db.all_scored_assets(conn), scorer=scorer)
+        stats = finalize_scores(conn, scorer=scorer)
         typer.echo(f"Applied burst dedupe: {stats}")
+
+
+@app.command()
+def finalize(dedupe: bool = typer.Option(True, "--dedupe/--no-dedupe")):
+    """Recompute normalized scores and optionally refresh burst dedupe for all scored assets."""
+    with app_context() as (settings, conn, _client):
+        project_root = settings.db_path.parent
+        scorer = None
+        if dedupe:
+            scorer = VisionScorer(
+                settings.cache_dir,
+                helper_source=project_root / "tools" / "vision_probe.swift",
+                helper_binary=settings.preview_dir / "vision_probe",
+            )
+        stats = finalize_scores(conn, scorer=scorer, apply_dedupe=dedupe)
+        typer.echo(f"Finalize complete: {stats}")
 
 
 @app.command("sync-tags")

@@ -150,6 +150,8 @@ def run_scoring(
     scorer: VisionScorer,
     client,
     rows: Iterable,
+    *,
+    finalize: bool = True,
 ) -> int:
     processed = 0
     for row in rows:
@@ -176,9 +178,24 @@ def run_scoring(
             search_text=search_text,
         )
         processed += 1
-    db.normalize_scores(conn, db.all_scored_assets(conn))
-    apply_burst_dedup(conn, db.all_scored_assets(conn), scorer=scorer)
+    if finalize:
+        finalize_scores(conn, scorer=scorer)
     return processed
+
+
+def finalize_scores(
+    conn,
+    *,
+    scorer: "VisionScorer | None" = None,
+    apply_dedupe: bool = True,
+) -> Dict[str, int]:
+    rows = db.all_scored_assets(conn)
+    db.normalize_scores(conn, rows)
+    if not apply_dedupe:
+        return {"scored_assets": len(rows), "groups": 0, "demoted": 0}
+    dedupe_stats = apply_burst_dedup(conn, rows, scorer=scorer)
+    dedupe_stats["scored_assets"] = len(rows)
+    return dedupe_stats
 
 
 def apply_burst_dedup(

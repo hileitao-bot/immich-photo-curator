@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NASAI Live Progress</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f3efe7;
+        --panel: rgba(255, 255, 255, 0.88);
+        --ink: #17171b;
+        --muted: #68625c;
+        --border: rgba(23, 23, 27, 0.08);
+        --accent: #0c5cff;
+        --accent-soft: rgba(12, 92, 255, 0.12);
+        --warm: #ff7a45;
+        --warm-soft: rgba(255, 122, 69, 0.14);
+        --good: #0f9f66;
+        --bad: #c54545;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: "PingFang SC", "Noto Sans SC", sans-serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(255, 122, 69, 0.24), transparent 26%),
+          radial-gradient(circle at top right, rgba(12, 92, 255, 0.16), transparent 22%),
+          linear-gradient(180deg, #fbfaf8 0%, var(--bg) 100%);
+      }
+      main {
+        max-width: 1380px;
+        margin: 0 auto;
+        padding: 28px 18px 48px;
+      }
+      .hero {
+        display: grid;
+        grid-template-columns: 1.2fr 0.8fr;
+        gap: 18px;
+        margin-bottom: 18px;
+      }
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 28px;
+        padding: 22px;
+        backdrop-filter: blur(14px);
+        box-shadow: 0 22px 60px rgba(38, 32, 26, 0.08);
+      }
+      h1 {
+        margin: 0 0 12px;
+        font-size: 46px;
+        line-height: 1;
+        letter-spacing: -0.03em;
+      }
+      h2 {
+        margin: 0 0 14px;
+        font-size: 22px;
+      }
+      p {
+        margin: 0;
+        color: var(--muted);
+      }
+      .hero-meta {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 14px;
+      }
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        border-radius: 999px;
+        padding: 9px 14px;
+        background: rgba(255, 255, 255, 0.76);
+        border: 1px solid var(--border);
+        color: var(--muted);
+        font-size: 14px;
+      }
+      .chip strong {
+        color: var(--ink);
+      }
+      .hero-links {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 16px;
+      }
+      .hero-links a {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 46px;
+        padding: 0 16px;
+        border-radius: 16px;
+        text-decoration: none;
+        font-weight: 600;
+      }
+      .primary-link {
+        background: var(--accent);
+        color: white;
+      }
+      .secondary-link {
+        background: white;
+        color: var(--ink);
+        border: 1px solid var(--border);
+      }
+      .summary-panel {
+        display: grid;
+        gap: 14px;
+      }
+      .progress-wrap {
+        background: rgba(12, 92, 255, 0.06);
+        border-radius: 22px;
+        padding: 18px;
+      }
+      .progress-label {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 10px;
+        color: var(--muted);
+        font-size: 14px;
+      }
+      .progress-bar {
+        height: 18px;
+        border-radius: 999px;
+        background: rgba(23, 23, 27, 0.08);
+        overflow: hidden;
+      }
+      .progress-fill {
+        height: 100%;
+        width: 0;
+        border-radius: 999px;
+        background: linear-gradient(90deg, var(--accent) 0%, #48a1ff 100%);
+        transition: width 0.45s ease;
+      }
+      .stats-grid,
+      .process-grid,
+      .detail-grid {
+        display: grid;
+        gap: 14px;
+        margin-bottom: 18px;
+      }
+      .stats-grid {
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+      }
+      .process-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .detail-grid {
+        grid-template-columns: 1.2fr 0.8fr;
+      }
+      .metric-card {
+        padding: 18px;
+        border-radius: 22px;
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid var(--border);
+      }
+      .metric-card span {
+        display: block;
+        color: var(--muted);
+        font-size: 14px;
+      }
+      .metric-card strong {
+        display: block;
+        margin-top: 10px;
+        font-size: 34px;
+        line-height: 1;
+        letter-spacing: -0.04em;
+      }
+      .metric-card small {
+        display: block;
+        margin-top: 8px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .process-card {
+        padding: 18px;
+        border-radius: 24px;
+        border: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.78);
+      }
+      .process-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+      .status-pill {
+        border-radius: 999px;
+        padding: 6px 10px;
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .status-running {
+        color: var(--good);
+        background: rgba(15, 159, 102, 0.12);
+      }
+      .status-stopped {
+        color: var(--bad);
+        background: rgba(197, 69, 69, 0.1);
+      }
+      .process-grid dl,
+      .detail-card dl {
+        display: grid;
+        grid-template-columns: 92px 1fr;
+        gap: 8px 12px;
+        margin: 0;
+      }
+      dt {
+        color: var(--muted);
+        font-size: 13px;
+      }
+      dd {
+        margin: 0;
+        font-size: 14px;
+        word-break: break-all;
+      }
+      .detail-card {
+        padding: 18px;
+      }
+      .history-list {
+        display: grid;
+        gap: 10px;
+      }
+      .history-row {
+        display: grid;
+        grid-template-columns: 124px 1fr 88px;
+        gap: 12px;
+        align-items: center;
+      }
+      .history-time {
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .history-bar {
+        height: 14px;
+        border-radius: 999px;
+        overflow: hidden;
+        background: rgba(23, 23, 27, 0.07);
+      }
+      .history-bar span {
+        display: block;
+        height: 100%;
+        width: 0;
+        border-radius: 999px;
+        background: linear-gradient(90deg, var(--warm) 0%, #ffbc6e 100%);
+      }
+      .history-value {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .storage-list {
+        display: grid;
+        gap: 10px;
+      }
+      .storage-item {
+        border-radius: 18px;
+        padding: 14px;
+        background: rgba(12, 92, 255, 0.06);
+      }
+      .storage-item strong {
+        display: block;
+        font-size: 15px;
+      }
+      .storage-item span {
+        display: block;
+        margin-top: 6px;
+        color: var(--muted);
+        font-size: 13px;
+        word-break: break-all;
+      }
+      .muted-note {
+        color: var(--muted);
+        font-size: 13px;
+      }
+      @media (max-width: 1120px) {
+        .hero,
+        .detail-grid,
+        .process-grid,
+        .stats-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="hero">
+        <div class="card">
+          <h1>NASAI 进度监控台</h1>
+          <p>实时查看全量索引、本地评分、吞吐速率和后台进程状态。</p>
+          <div class="hero-meta">
+            <span class="chip">自动刷新 <strong>5 秒</strong></span>
+            <span class="chip">当前已评分 <strong id="hero-scored">{{ summary.scored }}</strong></span>
+            <span class="chip">当前已索引 <strong id="hero-total">{{ summary.total }}</strong></span>
+            <span class="chip">最近评分 <strong id="last-scored">等待数据</strong></span>
+          </div>
+          <div class="hero-links">
+            <a class="primary-link" href="/" target="_blank" rel="noreferrer">打开筛选预览</a>
+            <a class="secondary-link" href="/api/progress" target="_blank" rel="noreferrer">查看原始 JSON</a>
+          </div>
+        </div>
+
+        <div class="card summary-panel">
+          <div class="progress-wrap">
+            <div class="progress-label">
+              <span>按当前已索引资产计算的评分覆盖率</span>
+              <strong id="coverage-text">0%</strong>
+            </div>
+            <div class="progress-bar">
+              <div class="progress-fill" id="coverage-fill"></div>
+            </div>
+          </div>
+          <div class="progress-wrap" style="background: var(--warm-soft);">
+            <div class="progress-label">
+              <span>当前待评分积压</span>
+              <strong id="backlog-text">0</strong>
+            </div>
+            <div class="progress-bar">
+              <div class="progress-fill" id="backlog-fill" style="background: linear-gradient(90deg, var(--warm) 0%, #ffba66 100%);"></div>
+            </div>
+          </div>
+          <p class="muted-note" id="eta-text">正在积累速率样本，ETA 稍后显示。</p>
+        </div>
+      </section>
+
+      <section class="stats-grid" id="stats-grid"></section>
+      <section class="process-grid" id="process-grid"></section>
+
+      <section class="detail-grid">
+        <div class="card detail-card">
+          <h2>最近进度轨迹</h2>
+          <div class="history-list" id="history-list"></div>
+        </div>
+        <div class="card detail-card">
+          <h2>本地状态</h2>
+          <div class="storage-list" id="storage-list"></div>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const statsGrid = document.getElementById("stats-grid");
+      const processGrid = document.getElementById("process-grid");
+      const historyList = document.getElementById("history-list");
+      const storageList = document.getElementById("storage-list");
+      const coverageFill = document.getElementById("coverage-fill");
+      const coverageText = document.getElementById("coverage-text");
+      const backlogFill = document.getElementById("backlog-fill");
+      const backlogText = document.getElementById("backlog-text");
+      const etaText = document.getElementById("eta-text");
+      const heroScored = document.getElementById("hero-scored");
+      const heroTotal = document.getElementById("hero-total");
+      const lastScored = document.getElementById("last-scored");
+
+      function formatNumber(value) {
+        return new Intl.NumberFormat("zh-CN").format(Number(value || 0));
+      }
+
+      function formatPercent(value) {
+        return `${(Number(value || 0) * 100).toFixed(1)}%`;
+      }
+
+      function formatBytes(bytes) {
+        const value = Number(bytes || 0);
+        if (!value) return "0 B";
+        const units = ["B", "KB", "MB", "GB", "TB"];
+        const power = Math.min(Math.floor(Math.log(value) / Math.log(1024)), units.length - 1);
+        const size = value / (1024 ** power);
+        return `${size.toFixed(size >= 100 ? 0 : size >= 10 ? 1 : 2)} ${units[power]}`;
+      }
+
+      function formatRate(value) {
+        const num = Number(value || 0);
+        if (!num) return "0 / 分";
+        return `${num.toFixed(num >= 100 ? 0 : num >= 10 ? 1 : 2)} / 分`;
+      }
+
+      function formatEta(minutes) {
+        if (minutes == null || !Number.isFinite(minutes)) return "ETA 暂不可用";
+        if (minutes < 1) return "不到 1 分钟";
+        if (minutes < 60) return `${minutes.toFixed(1)} 分钟`;
+        const hours = Math.floor(minutes / 60);
+        const mins = Math.round(minutes % 60);
+        if (hours < 24) return `${hours} 小时 ${mins} 分`;
+        const days = Math.floor(hours / 24);
+        const remainHours = hours % 24;
+        return `${days} 天 ${remainHours} 小时`;
+      }
+
+      function formatIso(iso) {
+        if (!iso) return "暂无";
+        return new Date(iso).toLocaleString("zh-CN", { hour12: false });
+      }
+
+      function renderStats(summary, metrics) {
+        const cards = [
+          { label: "已索引资产", value: formatNumber(summary.total), note: "本地 SQLite 行数" },
+          { label: "已评分资产", value: formatNumber(summary.scored), note: "已跑完本地 AI" },
+          { label: "待评分资产", value: formatNumber(summary.unscored), note: "当前积压队列" },
+          { label: "照片", value: formatNumber(summary.images), note: "IMAGE" },
+          { label: "视频", value: formatNumber(summary.videos), note: "VIDEO" },
+          { label: "连拍保留", value: formatNumber(summary.burstPicks), note: "去重后保留图" },
+          { label: "建议保留", value: formatNumber(summary.keep), note: "当前建议动作" },
+          { label: "建议归档", value: formatNumber(summary.archive), note: "当前建议动作" },
+          { label: "索引速率", value: formatRate(metrics.indexedPerMin), note: "最近窗口估算" },
+          { label: "评分速率", value: formatRate(metrics.scoredPerMin), note: "最近窗口估算" },
+          { label: "覆盖率", value: formatPercent(summary.scoreCoverage), note: "已评分 / 已索引" },
+          { label: "ETA", value: formatEta(metrics.etaMinutesForIndexedBacklog), note: "按当前积压估算" },
+        ];
+        statsGrid.innerHTML = cards.map((card) => `
+          <article class="metric-card">
+            <span>${card.label}</span>
+            <strong>${card.value}</strong>
+            <small>${card.note}</small>
+          </article>
+        `).join("");
+      }
+
+      function renderProcesses(processes) {
+        const cards = [
+          { key: "discover", title: "Discover 全量索引" },
+          { key: "scoreQueue", title: "Score Queue 全量评分" },
+          { key: "preview", title: "Preview 本地服务" },
+        ];
+        processGrid.innerHTML = cards.map((card) => {
+          const proc = processes[card.key] || { running: false };
+          const statusClass = proc.running ? "status-running" : "status-stopped";
+          const statusText = proc.running ? "运行中" : "未运行";
+          return `
+            <article class="process-card">
+              <div class="process-head">
+                <strong>${card.title}</strong>
+                <span class="status-pill ${statusClass}">${statusText}</span>
+              </div>
+              <dl>
+                <dt>PID</dt>
+                <dd>${proc.running ? proc.pid : "-"}</dd>
+                <dt>CPU</dt>
+                <dd>${proc.running ? `${proc.cpu.toFixed(1)}%` : "-"}</dd>
+                <dt>内存</dt>
+                <dd>${proc.running ? `${proc.memory.toFixed(1)}%` : "-"}</dd>
+                <dt>运行时长</dt>
+                <dd>${proc.running ? proc.elapsed : "-"}</dd>
+              </dl>
+            </article>
+          `;
+        }).join("");
+      }
+
+      function renderHistory(snapshots) {
+        if (!snapshots.length) {
+          historyList.innerHTML = `<p class="muted-note">还没有历史快照，保持页面打开几秒后会自动出现。</p>`;
+          return;
+        }
+        const recent = snapshots.slice(-12).reverse();
+        const maxTotal = Math.max(...recent.map((row) => Number(row.total || 0)), 1);
+        historyList.innerHTML = recent.map((row) => {
+          const width = (Number(row.scored || 0) / maxTotal) * 100;
+          return `
+            <div class="history-row">
+              <span class="history-time">${formatIso(row.capturedAt)}</span>
+              <div class="history-bar"><span style="width:${width}%"></span></div>
+              <span class="history-value">${formatNumber(row.scored)} / ${formatNumber(row.total)}</span>
+            </div>
+          `;
+        }).join("");
+      }
+
+      function renderStorage(storage) {
+        const items = [
+          { label: "数据库大小", value: formatBytes(storage.dbSizeBytes), path: storage.dbPath },
+          { label: "已缓存缩略图行", value: formatNumber(storage.cachedThumbRows), path: storage.cacheDir },
+          { label: "预览目录", value: "本地服务目录", path: storage.previewDir },
+        ];
+        storageList.innerHTML = items.map((item) => `
+          <div class="storage-item">
+            <strong>${item.label}: ${item.value}</strong>
+            <span>${item.path}</span>
+          </div>
+        `).join("");
+      }
+
+      function renderHero(summary, metrics) {
+        heroScored.textContent = formatNumber(summary.scored);
+        heroTotal.textContent = formatNumber(summary.total);
+        lastScored.textContent = formatIso(summary.lastScoredAt);
+        coverageFill.style.width = `${Math.max(0, Math.min(100, summary.scoreCoverage * 100))}%`;
+        coverageText.textContent = formatPercent(summary.scoreCoverage);
+        backlogText.textContent = formatNumber(summary.unscored);
+        const backlogRatio = summary.total ? ((summary.unscored / summary.total) * 100) : 0;
+        backlogFill.style.width = `${Math.max(0, Math.min(100, backlogRatio))}%`;
+        etaText.textContent = metrics.snapshotCount >= 2
+          ? `当前评分速率 ${formatRate(metrics.scoredPerMin)}，按已索引积压估算还需 ${formatEta(metrics.etaMinutesForIndexedBacklog)}。`
+          : "正在积累速率样本，ETA 稍后显示。";
+      }
+
+      async function loadProgress() {
+        const response = await fetch("/api/progress", { cache: "no-store" });
+        const payload = await response.json();
+        renderHero(payload.summary, payload.metrics);
+        renderStats(payload.summary, payload.metrics);
+        renderProcesses(payload.processes);
+        renderHistory(payload.snapshots || []);
+        renderStorage(payload.storage);
+      }
+
+      loadProgress();
+      setInterval(loadProgress, 5000);
+    </script>
+  </body>
+</html>

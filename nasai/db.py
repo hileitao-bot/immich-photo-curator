@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
@@ -50,6 +51,15 @@ def init_db(conn: sqlite3.Connection) -> None:
           key TEXT PRIMARY KEY,
           value TEXT NOT NULL
         );
+
+        CREATE TABLE IF NOT EXISTS progress_snapshots (
+          captured_at TEXT PRIMARY KEY,
+          total INTEGER NOT NULL,
+          scored INTEGER NOT NULL,
+          images INTEGER NOT NULL,
+          videos INTEGER NOT NULL,
+          burst_picks INTEGER NOT NULL
+        );
         """
     )
     _ensure_column(conn, "assets", "vision_labels_json", "TEXT")
@@ -59,6 +69,12 @@ def init_db(conn: sqlite3.Connection) -> None:
     _ensure_column(conn, "assets", "burst_group_size", "INTEGER")
     _ensure_column(conn, "assets", "burst_rank", "INTEGER")
     _ensure_column(conn, "assets", "is_burst_pick", "INTEGER NOT NULL DEFAULT 1")
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_progress_snapshots_captured_at
+        ON progress_snapshots (captured_at DESC)
+        """
+    )
     conn.commit()
 
 
@@ -354,4 +370,113 @@ def summary(conn: sqlite3.Connection) -> Dict[str, Any]:
     burst_picks = conn.execute(
         "SELECT COUNT(*) AS c FROM assets WHERE raw_score IS NOT NULL AND asset_type = 'IMAGE' AND ifnull(is_burst_pick, 1) = 1"
     ).fetchone()["c"]
-    return {"total": total, "scored": scored, "images": images, "videos": videos, "burstPicks": burst_picks}
+    keep = conn.execute(
+        "SELECT COUNT(*) AS c FROM assets WHERE raw_score IS NOT NULL AND suggested_action = 'keep'"
+    ).fetchone()["c"]
+    archive = conn.execute(
+        "SELECT COUNT(*) AS c FROM assets WHERE raw_score IS NOT NULL AND suggested_action = 'archive'"
+    ).fetchone()["c"]
+    last_scored_at_row = conn.execute(
+        "SELECT MAX(scored_at) AS scored_at FROM assets WHERE scored_at IS NOT NULL"
+    ).fetchone()
+    return {
+        "total": total,
+        "scored": scored,
+        "unscored": max(total - scored, 0),
+        "images": images,
+        "videos": videos,
+        "burstPicks": burst_picks,
+        "keep": keep,
+        "archive": archive,
+        "scoreCoverage": (float(scored) / float(total)) if total else 0.0,
+        "lastScoredAt": last_scored_at_row["scored_at"] if last_scored_at_row else None,
+    }
+
+
+def record_progress_snapshot(
+    conn: sqlite3.Connection,
+    snapshot: Dict[str, Any],
+    *,
+    min_interval_seconds: int = 15,
+) -> Dict[str, Any]:
+    now = datetime.now(timezone.utc)
+    last = conn.execute(
+        """
+        SELECT captured_at, total, scored, images, videos, burst_picks
+        FROM progress_snapshots
+        ORDER BY captured_at DESC
+        LIMIT 1
+        """
+    ).fetchone()
+    if last is not None:
+        last_at = datetime.fromisoformat(last["captured_at"])
+        values_unchanged = (
+            int(last["total"]) == int(snapshot["total"])
+            and int(last["scored"]) == int(snapshot["scored"])
+            and int(last["images"]) == int(snapshot["images"])
+            and int(last["videos"]) == int(snapshot["videos"])
+            and int(last["burst_picks"]) == int(snapshot["burstPicks"])
+        )
+        if values_unchanged and (now - last_at).total_seconds() < min_interval_seconds:
+            return {
+                "capturedAt": last["captured_at"],
+                "total": int(last["total"]),
+                "scored": int(last["scored"]),
+                "images": int(last["images"]),
+                "videos": int(last["videos"]),
+                "burstPicks": int(last["burst_picks"]),
+            }
+
+    captured_at = now.isoformat()
+    conn.execute(
+        """
+        INSERT INTO progress_snapshots (
+          captured_at, total, scored, images, videos, burst_picks
+        ) VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (
+            captured_at,
+            int(snapshot["total"]),
+            int(snapshot["scored"]),
+            int(snapshot["images"]),
+            int(snapshot["videos"]),
+            int(snapshot["burstPicks"]),
+        ),
+    )
+    conn.commit()
+    return {
+        "capturedAt": captured_at,
+        "total": int(snapshot["total"]),
+        "scored": int(snapshot["scored"]),
+        "images": int(snapshot["images"]),
+        "videos": int(snapshot["videos"]),
+        "burstPicks": int(snapshot["burstPicks"]),
+    }
+
+
+def recent_progress_snapshots(
+    conn: sqlite3.Connection,
+    *,
+    limit: int = 120,
+) -> List[Dict[str, Any]]:
+    rows = conn.execute(
+        """
+        SELECT captured_at, total, scored, images, videos, burst_picks
+        FROM progress_snapshots
+        ORDER BY captured_at DESC
+        LIMIT ?
+        """,
+        (limit,),
+    ).fetchall()
+    payload = [
+        {
+            "capturedAt": row["captured_at"],
+            "total": int(row["total"]),
+            "scored": int(row["scored"]),
+            "images": int(row["images"]),
+            "videos": int(row["videos"]),
+            "burstPicks": int(row["burst_picks"]),
+        }
+        for row in reversed(rows)
+    ]
+    return payload

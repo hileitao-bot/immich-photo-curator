@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import subprocess
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -29,9 +31,31 @@ class PreviewApp:
                 context={"summary": db.summary(self.conn)},
             )
 
+        @app.get("/progress", response_class=HTMLResponse)
+        def progress_page(request: Request):
+            return self.templates.TemplateResponse(
+                request=request,
+                name="progress.html",
+                context={"summary": db.summary(self.conn)},
+            )
+
         @app.get("/api/summary")
         def summary():
             return db.summary(self.conn)
+
+        @app.get("/api/progress")
+        def progress():
+            summary = db.summary(self.conn)
+            db.record_progress_snapshot(self.conn, summary)
+            snapshots = db.recent_progress_snapshots(self.conn, limit=180)
+            return {
+                "summary": summary,
+                "snapshots": snapshots[-48:],
+                "metrics": self._progress_metrics(summary, snapshots),
+                "processes": self._pipeline_processes(),
+                "storage": self._storage_stats(),
+                "updatedAt": datetime.now(timezone.utc).isoformat(),
+            }
 
         @app.get("/api/assets")
         def assets(
@@ -117,4 +141,121 @@ class PreviewApp:
             "openUrl": self.client.open_asset_url(row["asset_id"]),
             "burstGroupSize": row["burst_group_size"] or 1,
             "isBurstPick": bool(row["is_burst_pick"] if row["is_burst_pick"] is not None else 1),
+        }
+
+    def _pipeline_processes(self) -> Dict[str, Dict[str, Any]]:
+        rows = self._process_rows()
+        return {
+            "discover": self._match_process(rows, "nasai discover"),
+            "scoreQueue": self._match_process(rows, "nasai score-queue"),
+            "preview": self._match_process(rows, "nasai preview"),
+        }
+
+    def _process_rows(self) -> List[Dict[str, Any]]:
+        result = subprocess.run(
+            ["ps", "-axo", "pid,%cpu,%mem,etime,command"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        rows: List[Dict[str, Any]] = []
+        for raw_line in result.stdout.splitlines()[1:]:
+            line = raw_line.strip()
+            if not line:
+                continue
+            parts = line.split(None, 4)
+            if len(parts) < 5:
+                continue
+            pid, cpu, mem, elapsed, command = parts
+            rows.append(
+                {
+                    "pid": int(pid),
+                    "cpu": float(cpu),
+                    "memory": float(mem),
+                    "elapsed": elapsed,
+                    "command": command,
+                }
+            )
+        return rows
+
+    def _match_process(self, rows: List[Dict[str, Any]], needle: str) -> Dict[str, Any]:
+        candidates = [
+            row
+            for row in rows
+            if needle in row["command"]
+            and "ps -axo" not in row["command"]
+            and "rg " not in row["command"]
+        ]
+        preferred = [row for row in candidates if "uv run " not in row["command"]]
+        row = preferred[0] if preferred else (candidates[0] if candidates else None)
+        if row is None:
+            return {"running": False}
+        return {
+            "running": True,
+            "pid": row["pid"],
+            "cpu": row["cpu"],
+            "memory": row["memory"],
+            "elapsed": row["elapsed"],
+            "command": row["command"],
+        }
+
+    def _storage_stats(self) -> Dict[str, Any]:
+        db_files = [
+            self.settings.db_path,
+            self.settings.db_path.with_name(f"{self.settings.db_path.name}-wal"),
+            self.settings.db_path.with_name(f"{self.settings.db_path.name}-shm"),
+        ]
+        db_size_bytes = sum(path.stat().st_size for path in db_files if path.exists())
+        cached_thumb_rows = self.conn.execute(
+            """
+            SELECT COUNT(*) AS c
+            FROM assets
+            WHERE thumbnail_cache_path IS NOT NULL AND thumbnail_cache_path <> ''
+            """
+        ).fetchone()["c"]
+        return {
+            "dbSizeBytes": db_size_bytes,
+            "cachedThumbRows": cached_thumb_rows,
+            "dbPath": str(self.settings.db_path),
+            "cacheDir": str(self.settings.cache_dir),
+            "previewDir": str(self.settings.preview_dir),
+        }
+
+    def _progress_metrics(
+        self,
+        summary: Dict[str, Any],
+        snapshots: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        indexed_per_min = 0.0
+        scored_per_min = 0.0
+        baseline = None
+        latest = snapshots[-1] if snapshots else None
+        if len(snapshots) >= 2 and latest is not None:
+            latest_at = datetime.fromisoformat(latest["capturedAt"])
+            for candidate in reversed(snapshots[:-1]):
+                candidate_at = datetime.fromisoformat(candidate["capturedAt"])
+                if (latest_at - candidate_at).total_seconds() >= 60:
+                    baseline = candidate
+                    break
+            if baseline is None:
+                baseline = snapshots[0]
+            baseline_at = datetime.fromisoformat(baseline["capturedAt"])
+            elapsed_seconds = max((latest_at - baseline_at).total_seconds(), 1.0)
+            indexed_per_min = max(
+                0.0,
+                (float(latest["total"]) - float(baseline["total"])) / elapsed_seconds * 60.0,
+            )
+            scored_per_min = max(
+                0.0,
+                (float(latest["scored"]) - float(baseline["scored"])) / elapsed_seconds * 60.0,
+            )
+        unscored = int(summary["unscored"])
+        eta_minutes = None
+        if scored_per_min > 0:
+            eta_minutes = unscored / scored_per_min
+        return {
+            "indexedPerMin": indexed_per_min,
+            "scoredPerMin": scored_per_min,
+            "etaMinutesForIndexedBacklog": eta_minutes,
+            "snapshotCount": len(snapshots),
         }
