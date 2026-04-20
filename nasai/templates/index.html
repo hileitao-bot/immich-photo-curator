@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NASAI Preview</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f6f4ef;
+        --panel: rgba(255, 255, 255, 0.92);
+        --ink: #1d1d1f;
+        --muted: #6a625a;
+        --accent: #1254ff;
+        --warm: #ff875b;
+        --border: rgba(29, 29, 31, 0.08);
+      }
+      body {
+        margin: 0;
+        font-family: "PingFang SC", "Noto Sans SC", sans-serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(255, 194, 163, 0.35), transparent 28%),
+          radial-gradient(circle at top right, rgba(18, 84, 255, 0.14), transparent 22%),
+          linear-gradient(180deg, #fbfaf7 0%, var(--bg) 100%);
+      }
+      main {
+        max-width: 1320px;
+        margin: 0 auto;
+        padding: 32px 20px 48px;
+      }
+      .hero {
+        display: grid;
+        grid-template-columns: 1.3fr 1fr;
+        gap: 18px;
+        margin-bottom: 24px;
+      }
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 28px;
+        padding: 24px;
+        backdrop-filter: blur(12px);
+        box-shadow: 0 24px 70px rgba(40, 31, 25, 0.08);
+      }
+      h1 {
+        margin: 0 0 12px;
+        font-size: 44px;
+        line-height: 1;
+      }
+      p {
+        margin: 0;
+        color: var(--muted);
+      }
+      .stats {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .stat {
+        min-width: 110px;
+        border-radius: 20px;
+        padding: 16px;
+        background: rgba(18, 84, 255, 0.06);
+      }
+      .stat strong {
+        display: block;
+        font-size: 28px;
+      }
+      .controls {
+        display: grid;
+        grid-template-columns: 2fr repeat(3, 1fr);
+        gap: 12px;
+        margin-bottom: 18px;
+      }
+      input,
+      select,
+      button {
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 14px 16px;
+        font: inherit;
+        background: white;
+      }
+      button {
+        background: var(--accent);
+        color: white;
+        cursor: pointer;
+      }
+      .result-count {
+        display: inline-flex;
+        align-items: center;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 0 14px;
+        background: rgba(18, 84, 255, 0.08);
+        color: var(--ink);
+        min-height: 48px;
+      }
+      #grid {
+        display: grid;
+        gap: 18px;
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      }
+      .asset {
+        overflow: hidden;
+      }
+      .asset img {
+        width: 100%;
+        height: 220px;
+        object-fit: cover;
+        background: #ebe7df;
+        display: block;
+      }
+      .asset-body {
+        padding: 14px 16px 18px;
+      }
+      .pill-row {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 8px;
+      }
+      .pill {
+        border-radius: 999px;
+        padding: 4px 10px;
+        font-size: 12px;
+        background: rgba(18, 84, 255, 0.08);
+      }
+      .grade {
+        background: rgba(255, 135, 91, 0.16);
+      }
+      a.open-link {
+        display: inline-block;
+        margin-top: 10px;
+        color: var(--accent);
+        text-decoration: none;
+      }
+      @media (max-width: 900px) {
+        .hero,
+        .controls {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="hero">
+        <div class="card">
+          <h1>NASAI 试点预览</h1>
+          <p>先在本地确认评分、标签和建议动作，再决定是否同步归档。</p>
+        </div>
+        <div class="card stats">
+          <div class="stat">
+            <span>资产</span>
+            <strong>{{ summary.total }}</strong>
+          </div>
+          <div class="stat">
+            <span>已评分</span>
+            <strong>{{ summary.scored }}</strong>
+          </div>
+          <div class="stat">
+            <span>照片</span>
+            <strong>{{ summary.images }}</strong>
+          </div>
+          <div class="stat">
+            <span>视频</span>
+            <strong>{{ summary.videos }}</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="controls">
+        <input id="query" placeholder="中文搜索，例如：海边、人物、屏幕截图" />
+        <select id="type">
+          <option value="">全部类型</option>
+          <option value="IMAGE">照片</option>
+          <option value="VIDEO">视频</option>
+        </select>
+        <select id="grade">
+          <option value="">全部等级</option>
+          <option value="S">S</option>
+          <option value="A">A</option>
+          <option value="B">B</option>
+          <option value="C">C</option>
+          <option value="D">D</option>
+        </select>
+        <select id="action">
+          <option value="">全部动作</option>
+          <option value="keep">建议保留</option>
+          <option value="archive">建议归档</option>
+        </select>
+      </section>
+
+      <section class="controls">
+        <button id="refresh">刷新结果</button>
+        <span id="result-count" class="result-count">0 条结果</span>
+      </section>
+
+      <section id="grid"></section>
+    </main>
+    <script>
+      const grid = document.getElementById("grid");
+      const query = document.getElementById("query");
+      const type = document.getElementById("type");
+      const grade = document.getElementById("grade");
+      const action = document.getElementById("action");
+      const refresh = document.getElementById("refresh");
+      const resultCount = document.getElementById("result-count");
+
+      async function loadAssets() {
+        const params = new URLSearchParams();
+        if (query.value.trim()) params.set("query", query.value.trim());
+        if (type.value) params.set("type", type.value);
+        if (grade.value) params.set("grade", grade.value);
+        if (action.value) params.set("action", action.value);
+        const response = await fetch(`/api/assets?${params.toString()}`);
+        const payload = await response.json();
+        const assets = Array.isArray(payload) ? payload : (payload.items || []);
+        const total = Number(response.headers.get("X-Total-Count")) || payload.total || assets.length;
+        grid.innerHTML = assets.map(renderAsset).join("");
+        if (total > assets.length) {
+          resultCount.textContent = `显示 ${assets.length} / 共 ${total} 条`;
+          return;
+        }
+        resultCount.textContent = `共 ${total} 条结果`;
+      }
+
+      function renderAsset(asset) {
+        const tags = asset.tags.map(tag => `<span class="pill">${tag}</span>`).join("");
+        const burstBadge = asset.burstGroupSize > 1 && asset.isBurstPick
+          ? `<span class="pill">连拍 ${asset.burstGroupSize} 选 1</span>`
+          : "";
+        return `
+          <article class="card asset">
+            <img loading="lazy" src="/api/thumb/${asset.assetId}" alt="${asset.fileName}" />
+            <div class="asset-body">
+              <strong>${asset.fileName}</strong>
+              <div class="pill-row">
+                <span class="pill grade">${asset.grade || "-"}</span>
+                <span class="pill">${asset.type}</span>
+                <span class="pill">${asset.suggestedAction === "keep" ? "保留" : "归档"}</span>
+                ${burstBadge}
+              </div>
+              <div class="pill-row">${tags}</div>
+              <a class="open-link" href="${asset.openUrl}" target="_blank" rel="noreferrer">在 Immich 中打开</a>
+            </div>
+          </article>
+        `;
+      }
+
+      refresh.addEventListener("click", loadAssets);
+      query.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") loadAssets();
+      });
+      loadAssets();
+    </script>
+  </body>
+</html>

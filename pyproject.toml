@@ -1,0 +1,40 @@
+[project]
+name = "nasai"
+version = "0.1.0"
+description = "Local AI scoring, preview, and trial sync for Immich external libraries."
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+  "fastapi>=0.115,<1",
+  "httpx>=0.27,<1",
+  "jinja2>=3.1,<4",
+  "numpy>=1.26,<3",
+  "pillow>=10,<12",
+  "python-dotenv>=1.0,<2",
+  "typer>=0.12,<1",
+  "uvicorn>=0.30,<1",
+]
+
+[project.optional-dependencies]
+benchmark = [
+  "aesthetic-predictor-v2-5>=2024.12.18.1; python_version >= '3.10'",
+  "imagededup>=0.3.3.post2",
+  "sentence-transformers>=3.4.1; python_version >= '3.10'",
+  "torch>=2.11,<3; python_version >= '3.10'",
+  "torchvision>=0.26,<1; python_version >= '3.10'",
+  "transformers>=4.57,<5; python_version >= '3.10'",
+]
+
+[project.scripts]
+nasai = "nasai.cli:app"
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["nasai"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"

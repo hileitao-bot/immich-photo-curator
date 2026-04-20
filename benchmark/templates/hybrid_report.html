@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NASAI Hybrid Trial</title>
+    <style>
+      :root {
+        --bg: #f4f1ea;
+        --panel: rgba(255, 255, 255, 0.94);
+        --ink: #171717;
+        --muted: #6a645d;
+        --accent: #0d5b4d;
+        --accent-soft: rgba(13, 91, 77, 0.08);
+        --border: rgba(23, 23, 23, 0.08);
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: "PingFang SC", "Noto Sans SC", sans-serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(236, 195, 143, 0.26), transparent 34%),
+          linear-gradient(180deg, #faf8f3 0%, var(--bg) 100%);
+      }
+      main {
+        max-width: 1480px;
+        margin: 0 auto;
+        padding: 28px 18px 48px;
+      }
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 28px;
+        padding: 22px;
+        box-shadow: 0 20px 60px rgba(30, 24, 17, 0.08);
+        backdrop-filter: blur(14px);
+      }
+      h1, h2, h3 { margin: 0; }
+      p { color: var(--muted); }
+      .hero {
+        display: grid;
+        grid-template-columns: 1.3fr 1fr;
+        gap: 16px;
+        margin-bottom: 20px;
+      }
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+      }
+      .stat {
+        background: var(--accent-soft);
+        border-radius: 18px;
+        padding: 14px;
+      }
+      .stat strong {
+        display: block;
+        font-size: 28px;
+        margin-top: 8px;
+      }
+      .section-title {
+        margin: 28px 0 14px;
+      }
+      .section-copy {
+        margin: 0 0 14px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 14px;
+      }
+      .asset {
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        overflow: hidden;
+        background: white;
+      }
+      .asset img {
+        width: 100%;
+        aspect-ratio: 1 / 1;
+        object-fit: cover;
+        display: block;
+        background: #ebe7df;
+      }
+      .asset-body {
+        padding: 14px;
+      }
+      .asset strong {
+        display: block;
+        font-size: 16px;
+        line-height: 1.3;
+        margin-bottom: 8px;
+      }
+      .meta {
+        display: grid;
+        gap: 6px;
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .chips {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 10px;
+      }
+      .chip {
+        border-radius: 999px;
+        padding: 6px 12px;
+        background: var(--accent-soft);
+        font-size: 13px;
+      }
+      .chip-winner {
+        background: rgba(13, 91, 77, 0.16);
+      }
+      a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+      .duplicate-list {
+        display: grid;
+        gap: 18px;
+      }
+      .duplicate-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        flex-wrap: wrap;
+        margin-bottom: 14px;
+      }
+      .winner-strip {
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        overflow: hidden;
+        background: white;
+        margin-bottom: 14px;
+      }
+      .winner-strip img {
+        width: 100%;
+        max-height: 360px;
+        object-fit: cover;
+        display: block;
+        background: #ebe7df;
+      }
+      .winner-strip .asset-body {
+        padding: 16px;
+      }
+      .mini-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+        gap: 12px;
+      }
+      .video-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+      }
+      .video-table th, .video-table td {
+        text-align: left;
+        padding: 12px 10px;
+        border-bottom: 1px solid var(--border);
+        vertical-align: top;
+      }
+      .video-row {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+      }
+      .video-row img {
+        width: 84px;
+        height: 84px;
+        object-fit: cover;
+        border-radius: 12px;
+        background: #ebe7df;
+      }
+      @media (max-width: 960px) {
+        .hero, .stats {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="hero">
+        <div class="panel">
+          <h1>NASAI 第二轮大样本预览</h1>
+          <p>这页基于本机 `3000` 条本地元数据里的 `2000` 条已评分样本生成。当前策略分四层: 全局同图副本归并、近时段近重复归并、已命名人物优先排序、精选展示层再做一次场景去重。文档/截图优先下沉，vlog/旅行视频、已命名人物视频，以及检测到人脸且命中合照/儿童/宝宝标签的视频默认保护。</p>
+          <p>这一页仍然没有回写 Immich，只是生成本地建议和预览。</p>
+          <div class="chips">
+            <a class="chip chip-winner" href="{{ filteredPageName }}">打开筛掉检查页</a>
+          </div>
+        </div>
+        <div class="panel stats">
+          <div class="stat"><span>已评分样本</span><strong>{{ summary.scoredTotal }}</strong></div>
+          <div class="stat"><span>图片</span><strong>{{ summary.imageCount }}</strong></div>
+          <div class="stat"><span>视频</span><strong>{{ summary.videoCount }}</strong></div>
+          <div class="stat"><span>文档/截图</span><strong>{{ summary.negativeImages }}</strong></div>
+          <div class="stat"><span>重复组</span><strong>{{ summary.duplicateGroups }}</strong></div>
+          <div class="stat"><span>重复下沉</span><strong>{{ summary.duplicateDemotions }}</strong></div>
+          <div class="stat"><span>唯一候选图</span><strong>{{ summary.uniqueCandidates }}</strong></div>
+          <div class="stat"><span>精选展示</span><strong>{{ summary.displayKeeps }}</strong></div>
+          <div class="stat"><span>精选视频</span><strong>{{ summary.displayKeepVideos }}</strong></div>
+          <div class="stat"><span>系统缓冲</span><strong>{{ summary.reviewKeeps }}</strong></div>
+          <div class="stat"><span>低优先级</span><strong>{{ summary.archiveLows }}</strong></div>
+          <div class="stat"><span>视频保护</span><strong>{{ summary.protectedVideos }}</strong></div>
+        </div>
+      </section>
+
+      <h2 class="section-title">精选候选</h2>
+      <p class="section-copy">这里只展示去重后的高优先级图片。它们是唯一图候选中的前 30%，用于判断“只展示高分照片”这一目标是否已经接近你想要的效果。</p>
+      <section class="panel">
+        <div class="grid">
+          {% for asset in topPicks %}
+          <article class="asset">
+            <img src="{{ asset.thumbPath }}" alt="{{ asset.fileName }}" />
+            <div class="asset-body">
+              <strong>{{ asset.fileName }}</strong>
+              <div class="meta">
+                <span>当前: {{ asset.grade }} / {{ asset.currentAction }}</span>
+                <span>建议: {{ asset.proposedAction }}</span>
+                <span>手搓分: {{ '%.3f'|format(asset.rawScore) }}</span>
+                <span>审美分: {{ '%.3f'|format(asset.aestheticScore) }}</span>
+                <span>{{ asset.reason }}</span>
+              </div>
+              <div class="chips">
+                {% for person in asset.namedPeople %}<span class="chip chip-winner">{{ person }}</span>{% endfor %}
+                {% for tag in asset.tags %}<span class="chip">{{ tag }}</span>{% endfor %}
+              </div>
+              <div class="chips">
+                <a href="{{ asset.openUrl }}" target="_blank" rel="noreferrer">在 Immich 打开</a>
+              </div>
+            </div>
+          </article>
+          {% endfor %}
+        </div>
+      </section>
+
+      <h2 class="section-title">精选视频</h2>
+      <p class="section-copy">这些视频已经满足自动展示条件。它们分位进入前 20%，但没有命中“保护视频”规则，所以单独作为精选视频展示出来。</p>
+      <section class="panel">
+        <table class="video-table">
+          <thead>
+            <tr>
+              <th>视频</th>
+              <th>时长</th>
+              <th>当前</th>
+              <th>建议</th>
+              <th>路径</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for video in videoDisplayAll %}
+            <tr>
+              <td>
+                <div class="video-row">
+                  <img src="{{ video.thumbPath }}" alt="{{ video.fileName }}" />
+                  <div>
+                    <div><strong>{{ video.fileName }}</strong></div>
+                    <div class="chips">
+                      {% for person in video.namedPeople %}<span class="chip chip-winner">{{ person }}</span>{% endfor %}
+                      {% for tag in video.tags %}<span class="chip">{{ tag }}</span>{% endfor %}
+                    </div>
+                    <div><a href="{{ video.openUrl }}" target="_blank" rel="noreferrer">在 Immich 打开</a></div>
+                  </div>
+                </div>
+              </td>
+              <td>{{ video.duration }}</td>
+              <td>{{ video.grade }} / {{ video.currentAction }}</td>
+              <td>{{ video.proposedAction }}</td>
+              <td>{{ video.path }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </section>
+
+      <h2 class="section-title">系统缓冲</h2>
+      <p class="section-copy">这些内容不会直接进精选展示，但也不会自动归档。这里是算法的缓冲层，不要求你全量人工复核；主要包含中段保留图，以及和已入选精选图过于接近的同场景候补。</p>
+      <section class="panel">
+        <div class="grid">
+          {% for asset in reviewKeeps %}
+          <article class="asset">
+            <img src="{{ asset.thumbPath }}" alt="{{ asset.fileName }}" />
+            <div class="asset-body">
+              <strong>{{ asset.fileName }}</strong>
+              <div class="meta">
+                <span>当前: {{ asset.grade }} / {{ asset.currentAction }}</span>
+                <span>建议: {{ asset.proposedAction }}</span>
+                <span>手搓分: {{ '%.3f'|format(asset.rawScore) }}</span>
+                <span>审美分: {{ '%.3f'|format(asset.aestheticScore) }}</span>
+                <span>{{ asset.reason }}</span>
+              </div>
+              <div class="chips">
+                {% for person in asset.namedPeople %}<span class="chip chip-winner">{{ person }}</span>{% endfor %}
+                {% for tag in asset.tags %}<span class="chip">{{ tag }}</span>{% endfor %}
+              </div>
+              <div class="chips">
+                <a href="{{ asset.openUrl }}" target="_blank" rel="noreferrer">在 Immich 打开</a>
+              </div>
+            </div>
+          </article>
+          {% endfor %}
+        </div>
+      </section>
+
+      <h2 class="section-title">低优先级样本</h2>
+      <p class="section-copy">这部分就是当前被过滤出精选展示之外、并倾向后续归档的一批唯一图样本。这样你能直接看到“没展示的是什么”。</p>
+      <section class="panel">
+        <div class="grid">
+          {% for asset in lowPrioritySamples %}
+          <article class="asset">
+            <img src="{{ asset.thumbPath }}" alt="{{ asset.fileName }}" />
+            <div class="asset-body">
+              <strong>{{ asset.fileName }}</strong>
+              <div class="meta">
+                <span>当前: {{ asset.grade }} / {{ asset.currentAction }}</span>
+                <span>建议: {{ asset.proposedAction }}</span>
+                <span>手搓分: {{ '%.3f'|format(asset.rawScore) }}</span>
+                <span>审美分: {{ '%.3f'|format(asset.aestheticScore) }}</span>
+                <span>{{ asset.reason }}</span>
+              </div>
+              <div class="chips">
+                {% for person in asset.namedPeople %}<span class="chip chip-winner">{{ person }}</span>{% endfor %}
+                {% for tag in asset.tags %}<span class="chip">{{ tag }}</span>{% endfor %}
+              </div>
+              <div class="chips">
+                <a href="{{ asset.openUrl }}" target="_blank" rel="noreferrer">在 Immich 打开</a>
+              </div>
+            </div>
+          </article>
+          {% endfor %}
+        </div>
+      </section>
+
+      <h2 class="section-title">重复归并预览</h2>
+      <p class="section-copy">这些是被识别成重复并已下沉的内容。这里同时包含全局同图副本和近时段近重复；对含已命名人物的组，会先保人物命中，再结合人脸质量与审美分选最佳一张。</p>
+      <section class="duplicate-list">
+        {% for group in duplicateGroups %}
+        <article class="panel">
+          <div class="duplicate-head">
+            <div>
+              <h3>{{ group.clusterId }}</h3>
+              <p>保留 {{ group.winner.fileName }}，其余 {{ group.size - 1 }} 张并入重复。</p>
+            </div>
+            <div class="chips">
+              <span class="chip">{{ group.size }} 张</span>
+              <span class="chip chip-winner">最佳图</span>
+            </div>
+          </div>
+          <div class="winner-strip">
+            <img src="{{ group.winner.thumbPath }}" alt="{{ group.winner.fileName }}" />
+            <div class="asset-body">
+              <strong>{{ group.winner.fileName }}</strong>
+              <div class="meta">
+                <span>建议: {{ group.winner.proposedAction }}</span>
+                <span>当前: {{ group.winner.grade }} / {{ group.winner.currentAction }}</span>
+                <span>手搓分: {{ '%.3f'|format(group.winner.rawScore) }}</span>
+                <span>审美分: {{ '%.3f'|format(group.winner.aestheticScore) }}</span>
+                <span>{{ group.winner.reason }}</span>
+              </div>
+              <div class="chips">
+                {% for person in group.winner.namedPeople %}<span class="chip chip-winner">{{ person }}</span>{% endfor %}
+                {% for tag in group.winner.tags %}<span class="chip">{{ tag }}</span>{% endfor %}
+              </div>
+              <div class="chips">
+                <a href="{{ group.winner.openUrl }}" target="_blank" rel="noreferrer">在 Immich 打开</a>
+              </div>
+            </div>
+          </div>
+          <div class="mini-grid">
+            {% for asset in group.alternates %}
+            <article class="asset">
+              <img src="{{ asset.thumbPath }}" alt="{{ asset.fileName }}" />
+              <div class="asset-body">
+                <strong>{{ asset.fileName }}</strong>
+                <div class="meta">
+                  <span>建议: {{ asset.proposedAction }}</span>
+                  <span>当前: {{ asset.grade }} / {{ asset.currentAction }}</span>
+                  <span>审美分: {{ '%.3f'|format(asset.aestheticScore) }}</span>
+                  <span>{{ asset.reason }}</span>
+                </div>
+                <div class="chips">
+                  {% for person in asset.namedPeople %}<span class="chip chip-winner">{{ person }}</span>{% endfor %}
+                  {% for tag in asset.tags %}<span class="chip">{{ tag }}</span>{% endfor %}
+                </div>
+              </div>
+            </article>
+            {% endfor %}
+          </div>
+        </article>
+        {% endfor %}
+      </section>
+
+      <h2 class="section-title">文档与截图样本</h2>
+      <p class="section-copy">这部分用于确认“无意义截图/文档下沉”是否符合直觉。这里不靠审美分，而是直接按元数据和识别标签优先归档。</p>
+      <section class="panel">
+        <div class="grid">
+          {% for asset in negativeSamples %}
+          <article class="asset">
+            <img src="{{ asset.thumbPath }}" alt="{{ asset.fileName }}" />
+            <div class="asset-body">
+              <strong>{{ asset.fileName }}</strong>
+              <div class="meta">
+                <span>当前: {{ asset.grade }} / {{ asset.currentAction }}</span>
+                <span>建议: {{ asset.proposedAction }}</span>
+                <span>审美分: {{ '%.3f'|format(asset.aestheticScore) }}</span>
+                <span>{{ asset.reason }}</span>
+              </div>
+              <div class="chips">
+                {% for person in asset.namedPeople %}<span class="chip chip-winner">{{ person }}</span>{% endfor %}
+                {% for tag in asset.tags %}<span class="chip">{{ tag }}</span>{% endfor %}
+              </div>
+            </div>
+          </article>
+          {% endfor %}
+        </div>
+      </section>
+
+      <h2 class="section-title">受保护视频</h2>
+      <p class="section-copy">这部分先保护 vlog、旅行命名视频、长视频、已命名人物视频，以及检测到人脸且命中合照/儿童/宝宝标签的短视频，避免视频被过早误伤。</p>
+      <section class="panel">
+        <table class="video-table">
+          <thead>
+            <tr>
+              <th>视频</th>
+              <th>时长</th>
+              <th>当前</th>
+              <th>建议</th>
+              <th>路径</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for video in videoProtected %}
+            <tr>
+              <td>
+                <div class="video-row">
+                  <img src="{{ video.thumbPath }}" alt="{{ video.fileName }}" />
+                  <div>
+                    <div><strong>{{ video.fileName }}</strong></div>
+                    <div class="chips">{% for person in video.namedPeople %}<span class="chip chip-winner">{{ person }}</span>{% endfor %}</div>
+                    <div><a href="{{ video.openUrl }}" target="_blank" rel="noreferrer">在 Immich 打开</a></div>
+                  </div>
+                </div>
+              </td>
+              <td>{{ video.duration }}</td>
+              <td>{{ video.grade }} / {{ video.currentAction }}</td>
+              <td>{{ video.proposedAction }}</td>
+              <td>{{ video.path }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NASAI Small Benchmark</title>
+    <style>
+      :root {
+        --bg: #f6f4ef;
+        --panel: rgba(255, 255, 255, 0.94);
+        --ink: #171717;
+        --muted: #6c655e;
+        --accent: #1450ff;
+        --border: rgba(23, 23, 23, 0.08);
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: "PingFang SC", "Noto Sans SC", sans-serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(255, 199, 170, 0.28), transparent 30%),
+          linear-gradient(180deg, #fbfaf7 0%, var(--bg) 100%);
+      }
+      main {
+        max-width: 1440px;
+        margin: 0 auto;
+        padding: 28px 18px 48px;
+      }
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 28px;
+        padding: 22px;
+        box-shadow: 0 20px 60px rgba(30, 24, 17, 0.08);
+        backdrop-filter: blur(14px);
+      }
+      h1, h2, h3 { margin: 0; }
+      p { color: var(--muted); }
+      .hero {
+        display: grid;
+        grid-template-columns: 1.3fr 1fr;
+        gap: 16px;
+        margin-bottom: 20px;
+      }
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+      }
+      .stat {
+        background: rgba(20, 80, 255, 0.06);
+        border-radius: 18px;
+        padding: 14px;
+      }
+      .stat strong {
+        display: block;
+        font-size: 28px;
+        margin-top: 8px;
+      }
+      .section-title {
+        margin: 26px 0 14px;
+      }
+      .section-copy {
+        margin: 0 0 14px;
+      }
+      .groups {
+        display: grid;
+        gap: 18px;
+      }
+      .group-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        flex-wrap: wrap;
+        margin-bottom: 16px;
+      }
+      .chips {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .chip {
+        border-radius: 999px;
+        padding: 6px 12px;
+        background: rgba(20, 80, 255, 0.08);
+        font-size: 13px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 14px;
+      }
+      .asset {
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        overflow: hidden;
+        background: white;
+      }
+      .asset img {
+        width: 100%;
+        aspect-ratio: 1 / 1;
+        object-fit: cover;
+        display: block;
+        background: #ebe7df;
+      }
+      .asset-body {
+        padding: 14px;
+      }
+      .asset strong {
+        display: block;
+        font-size: 17px;
+        line-height: 1.3;
+        margin-bottom: 8px;
+      }
+      .meta {
+        display: grid;
+        gap: 6px;
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .asset .chips { margin-top: 10px; }
+      a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+      .standalone {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 14px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+      }
+      th, td {
+        text-align: left;
+        padding: 12px 10px;
+        border-bottom: 1px solid var(--border);
+        vertical-align: top;
+      }
+      .video-row {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+      }
+      .video-row img {
+        width: 84px;
+        height: 84px;
+        object-fit: cover;
+        border-radius: 12px;
+        background: #ebe7df;
+      }
+      .search-summary {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+      }
+      .search-scheme {
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        padding: 16px;
+        background: white;
+      }
+      .search-scheme strong {
+        display: block;
+        margin-bottom: 10px;
+        font-size: 18px;
+      }
+      .query-list {
+        display: grid;
+        gap: 18px;
+      }
+      .query-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        flex-wrap: wrap;
+        margin-bottom: 16px;
+      }
+      .scheme-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+      }
+      .scheme-panel {
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        padding: 14px;
+        background: white;
+      }
+      .scheme-meta {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 12px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .mini-grid {
+        display: grid;
+        gap: 10px;
+      }
+      .mini-asset {
+        display: grid;
+        grid-template-columns: 88px 1fr;
+        gap: 10px;
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        overflow: hidden;
+      }
+      .mini-asset img {
+        width: 88px;
+        height: 88px;
+        object-fit: cover;
+        background: #ebe7df;
+      }
+      .mini-body {
+        padding: 10px 10px 10px 0;
+      }
+      .mini-body strong {
+        font-size: 14px;
+        margin-bottom: 6px;
+      }
+      .mini-meta {
+        display: grid;
+        gap: 4px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .status-hit {
+        color: #0b7a34;
+      }
+      .status-miss {
+        color: #a03c14;
+      }
+      .empty-state {
+        padding: 24px 12px;
+        text-align: center;
+        color: var(--muted);
+        border: 1px dashed var(--border);
+        border-radius: 16px;
+      }
+      @media (max-width: 960px) {
+        .hero, .stats {
+          grid-template-columns: 1fr;
+        }
+        .search-summary,
+        .scheme-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="hero">
+        <div class="panel">
+          <h1>NASAI 小样本对比</h1>
+          <p>这一页只看独立 benchmark，不覆盖当前试点页。目标是比较现成方案在连拍去重和图片审美分上的表现，再决定主方案。</p>
+        </div>
+        <div class="panel stats">
+          <div class="stat"><span>连拍组</span><strong>{{ summary.duplicateGroupCount }}</strong></div>
+          <div class="stat"><span>连拍样本</span><strong>{{ summary.duplicateAssetCount }}</strong></div>
+          <div class="stat"><span>独立图片</span><strong>{{ summary.standaloneCount }}</strong></div>
+          <div class="stat"><span>视频参考</span><strong>{{ summary.videoCount }}</strong></div>
+          <div class="stat"><span>PHash 聚类</span><strong>{{ summary.phashClusters }}</strong></div>
+          <div class="stat"><span>CNN 聚类</span><strong>{{ summary.cnnClusters }}</strong></div>
+          <div class="stat"><span>搜索样本</span><strong>{{ summary.searchAssetCount }}</strong></div>
+          <div class="stat"><span>中文查询</span><strong>{{ summary.searchQueryCount }}</strong></div>
+        </div>
+      </section>
+
+      <h2 class="section-title">连拍组对比</h2>
+      <section class="groups">
+        {% for group in groups %}
+        <article class="panel">
+          <div class="group-header">
+            <div>
+              <h3>{{ group.title }}</h3>
+              <p>当前保留: {{ group.currentPick }}，审美分最高: {{ group.aestheticPick }}</p>
+            </div>
+            <div class="chips">
+              <span class="chip">{{ group.size }} 张</span>
+              <span class="chip">PHash {{ group.phashClusterCount }} 组</span>
+              <span class="chip">CNN {{ group.cnnClusterCount }} 组</span>
+            </div>
+          </div>
+          <div class="grid">
+            {% for asset in group.assets %}
+            <article class="asset">
+              <img src="{{ asset.thumbPath }}" alt="{{ asset.fileName }}" />
+              <div class="asset-body">
+                <strong>{{ asset.fileName }}</strong>
+                <div class="meta">
+                  <span>当前: {{ asset.grade }} / {{ asset.action }}</span>
+                  <span>当前连拍排序: {{ asset.burstRank }} / {{ asset.burstGroupSize }}</span>
+                  <span>手搓分: {{ '%.3f'|format(asset.rawScore) }}</span>
+                  <span>审美分: {{ '%.3f'|format(asset.aestheticScore) }}</span>
+                  <span>PHash: {{ asset.phashClusterId }} ({{ asset.phashClusterSize }})</span>
+                  <span>CNN: {{ asset.cnnClusterId }} ({{ asset.cnnClusterSize }})</span>
+                </div>
+                <div class="chips">
+                  {% if asset.burstRank == 1 %}<span class="chip">当前保留</span>{% endif %}
+                  {% if asset.fileName == group.aestheticPick %}<span class="chip">审美分最高</span>{% endif %}
+                  {% for tag in asset.tags %}<span class="chip">{{ tag }}</span>{% endfor %}
+                </div>
+                <div class="chips" style="margin-top: 12px;">
+                  <a href="{{ asset.openUrl }}" target="_blank" rel="noreferrer">在 Immich 打开</a>
+                </div>
+              </div>
+            </article>
+            {% endfor %}
+          </div>
+        </article>
+        {% endfor %}
+      </section>
+
+      <h2 class="section-title">独立图片抽样</h2>
+      <section class="panel standalone">
+        {% for asset in standalone %}
+        <article class="asset">
+          <img src="{{ asset.thumbPath }}" alt="{{ asset.fileName }}" />
+          <div class="asset-body">
+            <strong>{{ asset.fileName }}</strong>
+            <div class="meta">
+              <span>当前: {{ asset.grade }} / {{ asset.action }}</span>
+              <span>手搓分: {{ '%.3f'|format(asset.rawScore) }}</span>
+              <span>审美分: {{ '%.3f'|format(asset.aestheticScore) }}</span>
+              <span>PHash: {{ asset.phashClusterId }} ({{ asset.phashClusterSize }})</span>
+              <span>CNN: {{ asset.cnnClusterId }} ({{ asset.cnnClusterSize }})</span>
+            </div>
+            <div class="chips">
+              {% for tag in asset.tags %}<span class="chip">{{ tag }}</span>{% endfor %}
+            </div>
+          </div>
+        </article>
+        {% endfor %}
+      </section>
+
+      <h2 class="section-title">视频参考</h2>
+      <section class="panel">
+        <table>
+          <thead>
+            <tr>
+              <th>视频</th>
+              <th>时长</th>
+              <th>当前结论</th>
+              <th>路径</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for video in videos %}
+            <tr>
+              <td>
+                <div class="video-row">
+                  <img src="{{ video.thumbPath }}" alt="{{ video.fileName }}" />
+                  <div>
+                    <div><strong>{{ video.fileName }}</strong></div>
+                    <div><a href="{{ video.openUrl }}" target="_blank" rel="noreferrer">在 Immich 打开</a></div>
+                  </div>
+                </div>
+              </td>
+              <td>{{ video.duration }}</td>
+              <td>{{ video.grade }} / {{ video.action }}</td>
+              <td>{{ video.path }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </section>
+
+      <h2 class="section-title">中文搜索对比</h2>
+      <p class="section-copy">这里把同一批 500 个缩略图分别跑三个方案: 关键词直搜、多语言 CLIP、Chinese-CLIP。查询词故意用了“同义表达”和“地名表达”混合，目的是看哪种方案适合做主干。</p>
+      <section class="panel search-summary">
+        {% for item in search_summary %}
+        <article class="search-scheme">
+          <strong>{{ item.label }}</strong>
+          <div class="meta">
+            <span>总体命中@6: {{ '%.3f'|format(item.overallHitRate) }}</span>
+            <span>语义类@6: {{ '%.3f'|format(item.conceptHitRate) }}</span>
+            <span>地名类@6: {{ '%.3f'|format(item.namedHitRate) }}</span>
+          </div>
+        </article>
+        {% endfor %}
+      </section>
+
+      <section class="query-list" style="margin-top: 18px;">
+        {% for query in search %}
+        <article class="panel">
+          <div class="query-head">
+            <div>
+              <h3>{{ query.query }}</h3>
+              <p>{{ query.note }}</p>
+            </div>
+            <div class="chips">
+              <span class="chip">{{ "语义类" if query.kind == "concept" else "地名类" }}</span>
+              <span class="chip">相关样本 {{ query.relevantCount }}</span>
+            </div>
+          </div>
+          <div class="scheme-grid">
+            {% for scheme in query.schemes %}
+            <section class="scheme-panel">
+              <div class="scheme-meta">
+                <strong>{{ scheme.label }}</strong>
+                <span>命中@6: {{ scheme.hitCount }}/6</span>
+              </div>
+              {% if scheme.results %}
+              <div class="mini-grid">
+                {% for asset in scheme.results %}
+                <article class="mini-asset">
+                  <img src="{{ asset.thumbPath }}" alt="{{ asset.fileName }}" />
+                  <div class="mini-body">
+                    <strong>{{ asset.fileName }}</strong>
+                    <div class="mini-meta">
+                      <span>{{ asset.type }} / {{ asset.grade }} / {{ asset.action }}</span>
+                      <span>方案分数: {{ '%.4f'|format(asset.score) }}</span>
+                      <span class="{{ 'status-hit' if asset.relevant else 'status-miss' }}">
+                        {{ '相关命中' if asset.relevant else '非相关' }}
+                      </span>
+                      <span>{{ asset.path }}</span>
+                    </div>
+                    <div class="chips" style="margin-top: 8px;">
+                      {% for tag in asset.tags %}<span class="chip">{{ tag }}</span>{% endfor %}
+                    </div>
+                    <div class="chips" style="margin-top: 8px;">
+                      <a href="{{ asset.openUrl }}" target="_blank" rel="noreferrer">在 Immich 打开</a>
+                    </div>
+                  </div>
+                </article>
+                {% endfor %}
+              </div>
+              {% else %}
+              <div class="empty-state">这个方案没有找到任何结果。</div>
+              {% endif %}
+            </section>
+            {% endfor %}
+          </div>
+        </article>
+        {% endfor %}
+      </section>
+    </main>
+  </body>
+</html>
