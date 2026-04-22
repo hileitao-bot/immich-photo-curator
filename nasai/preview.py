@@ -186,8 +186,13 @@ class PreviewApp:
             and "ps -axo" not in row["command"]
             and "rg " not in row["command"]
         ]
-        preferred = [row for row in candidates if "uv run " not in row["command"]]
-        row = preferred[0] if preferred else (candidates[0] if candidates else None)
+        preferred = sorted(
+            (row for row in candidates if "uv run " not in row["command"]),
+            key=lambda row: row["pid"],
+            reverse=True,
+        )
+        fallback = sorted(candidates, key=lambda row: row["pid"], reverse=True)
+        row = preferred[0] if preferred else (fallback[0] if fallback else None)
         if row is None:
             return {"running": False}
         return {

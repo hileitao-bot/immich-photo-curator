@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+
 import json
 import shutil
 import sqlite3
@@ -28,7 +30,7 @@ SEARCH_TOP_K = 6
 ML_CLIP_IMAGE_MODEL = "clip-ViT-B-32"
 ML_CLIP_TEXT_MODEL = "sentence-transformers/clip-ViT-B-32-multilingual-v1"
 CHINESE_CLIP_MODEL = "OFA-Sys/chinese-clip-vit-base-patch16"
-IMMICH_BASE_URL = "http://192.168.1.18:2283"
+IMMICH_BASE_URL = os.environ.get("IMMICH_BASE_URL", "http://127.0.0.1:2283").rstrip("/")
 SEARCH_QUERIES = [
     {
         "query": "小朋友",

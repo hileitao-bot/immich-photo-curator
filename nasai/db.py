@@ -10,10 +10,11 @@ import numpy as np
 
 
 def connect(db_path: Path) -> sqlite3.Connection:
-    conn = sqlite3.connect(db_path, check_same_thread=False)
+    conn = sqlite3.connect(db_path, check_same_thread=False, timeout=30.0)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA synchronous=NORMAL")
+    conn.execute("PRAGMA busy_timeout=30000")
     return conn
 
 
@@ -69,6 +70,10 @@ def init_db(conn: sqlite3.Connection) -> None:
     _ensure_column(conn, "assets", "burst_group_size", "INTEGER")
     _ensure_column(conn, "assets", "burst_rank", "INTEGER")
     _ensure_column(conn, "assets", "is_burst_pick", "INTEGER NOT NULL DEFAULT 1")
+    _ensure_column(conn, "assets", "score_attempts", "INTEGER NOT NULL DEFAULT 0")
+    _ensure_column(conn, "assets", "score_last_error", "TEXT")
+    _ensure_column(conn, "assets", "score_last_attempt_at", "TEXT")
+    _ensure_column(conn, "assets", "score_failed_at", "TEXT")
     conn.execute(
         """
         CREATE INDEX IF NOT EXISTS idx_progress_snapshots_captured_at
@@ -153,7 +158,8 @@ def unscored_assets(conn: sqlite3.Connection, limit: int) -> List[sqlite3.Row]:
         """
         SELECT * FROM assets
         WHERE raw_score IS NULL
-        ORDER BY file_created_at DESC
+          AND score_failed_at IS NULL
+        ORDER BY ifnull(score_attempts, 0) ASC, file_created_at DESC
         LIMIT ?
         """,
         (limit,),
@@ -165,7 +171,6 @@ def all_scored_assets(conn: sqlite3.Connection) -> List[sqlite3.Row]:
         """
         SELECT * FROM assets
         WHERE raw_score IS NOT NULL
-        ORDER BY normalized_score DESC, raw_score DESC
         """
     ).fetchall()
 
@@ -190,7 +195,9 @@ def persist_score(
             vision_labels_json = ?,
             ocr_text_json = ?,
             search_text = ?,
-            scored_at = ?
+            scored_at = ?,
+            score_last_error = NULL,
+            score_failed_at = NULL
         WHERE asset_id = ?
         """,
         (
@@ -207,6 +214,45 @@ def persist_score(
     conn.commit()
 
 
+def record_score_attempt(conn: sqlite3.Connection, asset_id: str, attempted_at: str) -> None:
+    conn.execute(
+        """
+        UPDATE assets
+        SET score_attempts = ifnull(score_attempts, 0) + 1,
+            score_last_attempt_at = ?
+        WHERE asset_id = ?
+        """,
+        (attempted_at, asset_id),
+    )
+    conn.commit()
+
+
+def mark_score_failure(
+    conn: sqlite3.Connection,
+    *,
+    asset_id: str,
+    error_message: str,
+    failed_at: str,
+    permanent: bool,
+) -> None:
+    conn.execute(
+        """
+        UPDATE assets
+        SET score_last_error = ?,
+            score_last_attempt_at = ?,
+            score_failed_at = ?
+        WHERE asset_id = ?
+        """,
+        (
+            error_message,
+            failed_at,
+            failed_at if permanent else None,
+            asset_id,
+        ),
+    )
+    conn.commit()
+
+
 def normalize_scores(conn: sqlite3.Connection, rows: Iterable[sqlite3.Row]) -> None:
     rows = list(rows)
     row_map = {row["asset_id"]: row for row in rows}
@@ -214,6 +260,7 @@ def normalize_scores(conn: sqlite3.Connection, rows: Iterable[sqlite3.Row]) -> N
     for row in rows:
         buckets.setdefault(row["asset_type"], []).append((row["asset_id"], float(row["raw_score"])))
 
+    updates: List[tuple[float, float, str, str, str]] = []
     for _, bucket in buckets.items():
         scores = np.array([score for _, score in bucket], dtype=np.float32)
         order = np.argsort(scores)
@@ -245,17 +292,20 @@ def normalize_scores(conn: sqlite3.Connection, rows: Iterable[sqlite3.Row]) -> N
                     if percentile >= 0.8 and score >= 0.25 and not force_archive
                     else "archive"
                 )
-            conn.execute(
-                """
-                UPDATE assets
-                SET normalized_score = ?,
-                    percentile = ?,
-                    grade = ?,
-                    suggested_action = ?
-                WHERE asset_id = ?
-                """,
-                (score, percentile, grade, suggested_action, asset_id),
+            updates.append(
+                (score, percentile, grade, suggested_action, asset_id)
             )
+    conn.executemany(
+        """
+        UPDATE assets
+        SET normalized_score = ?,
+            percentile = ?,
+            grade = ?,
+            suggested_action = ?
+        WHERE asset_id = ?
+        """,
+        updates,
+    )
     conn.commit()
 
 
@@ -361,6 +411,12 @@ def mark_trial_synced(conn: sqlite3.Connection, asset_ids: Iterable[str], timest
 def summary(conn: sqlite3.Connection) -> Dict[str, Any]:
     total = conn.execute("SELECT COUNT(*) AS c FROM assets").fetchone()["c"]
     scored = conn.execute("SELECT COUNT(*) AS c FROM assets WHERE raw_score IS NOT NULL").fetchone()["c"]
+    failed = conn.execute(
+        "SELECT COUNT(*) AS c FROM assets WHERE raw_score IS NULL AND score_failed_at IS NOT NULL"
+    ).fetchone()["c"]
+    pending = conn.execute(
+        "SELECT COUNT(*) AS c FROM assets WHERE raw_score IS NULL AND score_failed_at IS NULL"
+    ).fetchone()["c"]
     images = conn.execute(
         "SELECT COUNT(*) AS c FROM assets WHERE asset_type = 'IMAGE'"
     ).fetchone()["c"]
@@ -382,7 +438,8 @@ def summary(conn: sqlite3.Connection) -> Dict[str, Any]:
     return {
         "total": total,
         "scored": scored,
-        "unscored": max(total - scored, 0),
+        "unscored": pending,
+        "failed": failed,
         "images": images,
         "videos": videos,
         "burstPicks": burst_picks,
@@ -428,22 +485,34 @@ def record_progress_snapshot(
             }
 
     captured_at = now.isoformat()
-    conn.execute(
-        """
-        INSERT INTO progress_snapshots (
-          captured_at, total, scored, images, videos, burst_picks
-        ) VALUES (?, ?, ?, ?, ?, ?)
-        """,
-        (
-            captured_at,
-            int(snapshot["total"]),
-            int(snapshot["scored"]),
-            int(snapshot["images"]),
-            int(snapshot["videos"]),
-            int(snapshot["burstPicks"]),
-        ),
-    )
-    conn.commit()
+    try:
+        conn.execute(
+            """
+            INSERT INTO progress_snapshots (
+              captured_at, total, scored, images, videos, burst_picks
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                captured_at,
+                int(snapshot["total"]),
+                int(snapshot["scored"]),
+                int(snapshot["images"]),
+                int(snapshot["videos"]),
+                int(snapshot["burstPicks"]),
+            ),
+        )
+        conn.commit()
+    except sqlite3.OperationalError as exc:
+        if "locked" not in str(exc).lower():
+            raise
+        return {
+            "capturedAt": captured_at,
+            "total": int(snapshot["total"]),
+            "scored": int(snapshot["scored"]),
+            "images": int(snapshot["images"]),
+            "videos": int(snapshot["videos"]),
+            "burstPicks": int(snapshot["burstPicks"]),
+        }
     return {
         "capturedAt": captured_at,
         "total": int(snapshot["total"]),

@@ -184,11 +184,13 @@
     <main>
       <section class="hero">
         <div class="panel">
-          <h1>NASAI 第二轮大样本预览</h1>
-          <p>这页基于本机 `3000` 条本地元数据里的 `2000` 条已评分样本生成。当前策略分四层: 全局同图副本归并、近时段近重复归并、已命名人物优先排序、精选展示层再做一次场景去重。文档/截图优先下沉，vlog/旅行视频、已命名人物视频，以及检测到人脸且命中合照/儿童/宝宝标签的视频默认保护。</p>
-          <p>这一页仍然没有回写 Immich，只是生成本地建议和预览。</p>
+          <h1>NASAI 全量精选预览</h1>
+          <p>这页基于 `nasai.db` 的全量已评分资产生成。当前策略直接复用全量 burst 去重结果、命名人物优先级和已有中文标签，只对高价值候选图补算审美分，避免再把整库图片重新跑一遍模型。</p>
+          <p>这一页仍然没有回写 Immich，只生成本地建议、动作清单和系统缓冲导出目录。</p>
           <div class="chips">
             <a class="chip chip-winner" href="{{ filteredPageName }}">打开筛掉检查页</a>
+            <a class="chip" href="{{ systemBufferReadmeName }}">系统缓冲说明</a>
+            <a class="chip" href="{{ systemBufferManifestName }}">系统缓冲清单</a>
           </div>
         </div>
         <div class="panel stats">
@@ -204,6 +206,9 @@
           <div class="stat"><span>系统缓冲</span><strong>{{ summary.reviewKeeps }}</strong></div>
           <div class="stat"><span>低优先级</span><strong>{{ summary.archiveLows }}</strong></div>
           <div class="stat"><span>视频保护</span><strong>{{ summary.protectedVideos }}</strong></div>
+          <div class="stat"><span>审美候选</span><strong>{{ summary.aestheticCandidates }}</strong></div>
+          <div class="stat"><span>缓存命中</span><strong>{{ summary.aestheticCached }}</strong></div>
+          <div class="stat"><span>本轮新算</span><strong>{{ summary.aestheticComputed }}</strong></div>
         </div>
       </section>
 
@@ -220,7 +225,7 @@
                 <span>当前: {{ asset.grade }} / {{ asset.currentAction }}</span>
                 <span>建议: {{ asset.proposedAction }}</span>
                 <span>手搓分: {{ '%.3f'|format(asset.rawScore) }}</span>
-                <span>审美分: {{ '%.3f'|format(asset.aestheticScore) }}</span>
+                <span>审美分: {{ asset.aestheticDisplay }}</span>
                 <span>{{ asset.reason }}</span>
               </div>
               <div class="chips">
@@ -250,7 +255,7 @@
             </tr>
           </thead>
           <tbody>
-            {% for video in videoDisplayAll %}
+            {% for video in videoDisplay %}
             <tr>
               <td>
                 <div class="video-row">
@@ -288,7 +293,7 @@
                 <span>当前: {{ asset.grade }} / {{ asset.currentAction }}</span>
                 <span>建议: {{ asset.proposedAction }}</span>
                 <span>手搓分: {{ '%.3f'|format(asset.rawScore) }}</span>
-                <span>审美分: {{ '%.3f'|format(asset.aestheticScore) }}</span>
+                <span>审美分: {{ asset.aestheticDisplay }}</span>
                 <span>{{ asset.reason }}</span>
               </div>
               <div class="chips">
@@ -317,7 +322,7 @@
                 <span>当前: {{ asset.grade }} / {{ asset.currentAction }}</span>
                 <span>建议: {{ asset.proposedAction }}</span>
                 <span>手搓分: {{ '%.3f'|format(asset.rawScore) }}</span>
-                <span>审美分: {{ '%.3f'|format(asset.aestheticScore) }}</span>
+                <span>审美分: {{ asset.aestheticDisplay }}</span>
                 <span>{{ asset.reason }}</span>
               </div>
               <div class="chips">
@@ -356,7 +361,7 @@
                 <span>建议: {{ group.winner.proposedAction }}</span>
                 <span>当前: {{ group.winner.grade }} / {{ group.winner.currentAction }}</span>
                 <span>手搓分: {{ '%.3f'|format(group.winner.rawScore) }}</span>
-                <span>审美分: {{ '%.3f'|format(group.winner.aestheticScore) }}</span>
+                <span>审美分: {{ group.winner.aestheticDisplay }}</span>
                 <span>{{ group.winner.reason }}</span>
               </div>
               <div class="chips">
@@ -377,7 +382,7 @@
                 <div class="meta">
                   <span>建议: {{ asset.proposedAction }}</span>
                   <span>当前: {{ asset.grade }} / {{ asset.currentAction }}</span>
-                  <span>审美分: {{ '%.3f'|format(asset.aestheticScore) }}</span>
+                  <span>审美分: {{ asset.aestheticDisplay }}</span>
                   <span>{{ asset.reason }}</span>
                 </div>
                 <div class="chips">
@@ -404,7 +409,7 @@
               <div class="meta">
                 <span>当前: {{ asset.grade }} / {{ asset.currentAction }}</span>
                 <span>建议: {{ asset.proposedAction }}</span>
-                <span>审美分: {{ '%.3f'|format(asset.aestheticScore) }}</span>
+                <span>审美分: {{ asset.aestheticDisplay }}</span>
                 <span>{{ asset.reason }}</span>
               </div>
               <div class="chips">

@@ -18,4 +18,6 @@ benchmark/__pycache__/
 .mypy_cache/
 dist/
 build/
+logs/
+backups/
 .DS_Store

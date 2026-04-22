@@ -3,6 +3,12 @@ import Vision
 import CoreGraphics
 import ImageIO
 
+struct ProbeEnvelope: Codable {
+    let ok: Bool
+    let result: ProbeResult?
+    let error: String?
+}
+
 struct Classification: Codable {
     let identifier: String
     let confidence: Double
@@ -68,17 +74,57 @@ func performProbe(on image: CGImage) throws -> ProbeResult {
     )
 }
 
-let args = CommandLine.arguments
-guard args.count == 2 else {
-    fputs("usage: vision_probe.swift <image_path>\n", stderr)
-    throw ProbeError.invalidArgs
+func writeJSON<T: Encodable>(_ value: T, pretty: Bool) throws {
+    let encoder = JSONEncoder()
+    if pretty {
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+    }
+    let data = try encoder.encode(value)
+    FileHandle.standardOutput.write(data)
+    FileHandle.standardOutput.write("\n".data(using: .utf8)!)
 }
 
-let imageURL = URL(fileURLWithPath: args[1])
-let image = try loadImage(url: imageURL)
-let result = try performProbe(on: image)
-let encoder = JSONEncoder()
-encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-let data = try encoder.encode(result)
-FileHandle.standardOutput.write(data)
-FileHandle.standardOutput.write("\n".data(using: .utf8)!)
+func runSingle(imagePath: String) throws {
+    try autoreleasepool {
+        let imageURL = URL(fileURLWithPath: imagePath)
+        let image = try loadImage(url: imageURL)
+        let result = try performProbe(on: image)
+        try writeJSON(result, pretty: true)
+    }
+}
+
+func runStdio() {
+    while let rawLine = readLine(strippingNewline: true) {
+        let imagePath = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+        if imagePath.isEmpty {
+            continue
+        }
+        do {
+            try autoreleasepool {
+                let imageURL = URL(fileURLWithPath: imagePath)
+                let image = try loadImage(url: imageURL)
+                let result = try performProbe(on: image)
+                try writeJSON(
+                    ProbeEnvelope(ok: true, result: result, error: nil),
+                    pretty: false
+                )
+            }
+        } catch {
+            let message = String(describing: error)
+            try? writeJSON(
+                ProbeEnvelope(ok: false, result: nil, error: message),
+                pretty: false
+            )
+        }
+    }
+}
+
+let args = Array(CommandLine.arguments.dropFirst())
+if args == ["--stdio"] {
+    runStdio()
+} else if args.count == 1 {
+    try runSingle(imagePath: args[0])
+} else {
+    fputs("usage: vision_probe.swift <image_path> | --stdio\n", stderr)
+    throw ProbeError.invalidArgs
+}

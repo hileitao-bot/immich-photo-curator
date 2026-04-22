@@ -185,9 +185,11 @@
       <section class="hero">
         <div class="panel">
           <h1>未进精选检查页</h1>
-          <p>这里专门用来检查“为什么没有出现在精选展示里”。现在同时包含图片和视频，按原因拆成五块：系统缓冲视频、场景候补/系统缓冲、低优先级、重复归并、文档与截图。</p>
+          <p>这里专门用来检查“为什么没有出现在精选展示里”。为了保证全量规模下页面可用，这里展示的是各类别抽样预览；真正的系统缓冲全量缩略图导出在下方链接里。</p>
           <div class="chips">
             <a class="chip chip-winner" href="index.html">返回主预览</a>
+            <a class="chip" href="{{ systemBufferReadmeName }}">系统缓冲说明</a>
+            <a class="chip" href="{{ systemBufferManifestName }}">系统缓冲清单</a>
             <a class="chip" href="#video-review">缓冲视频</a>
             <a class="chip" href="#review">系统缓冲</a>
             <a class="chip" href="#low">低优先级</a>
@@ -218,7 +220,7 @@
             </tr>
           </thead>
           <tbody>
-            {% for video in videoReviewAll %}
+            {% for video in videoReview %}
             <tr>
               <td>
                 <div class="video-row">
@@ -247,7 +249,7 @@
       <p class="section-copy">这些内容没有进精选展示，但也没有被判定为该归档。这里是系统缓冲层，包含场景候补和中段保留图，不假设你会全量人工复核。</p>
       <section class="panel">
         <div class="grid">
-          {% for asset in reviewKeepsAll %}
+          {% for asset in reviewKeeps %}
           <article class="asset">
             <img src="{{ asset.thumbPath }}" alt="{{ asset.fileName }}" />
             <div class="asset-body">
@@ -256,7 +258,7 @@
                 <span>当前: {{ asset.grade }} / {{ asset.currentAction }}</span>
                 <span>建议: {{ asset.proposedAction }}</span>
                 <span>手搓分: {{ '%.3f'|format(asset.rawScore) }}</span>
-                <span>审美分: {{ '%.3f'|format(asset.aestheticScore) }}</span>
+                <span>审美分: {{ asset.aestheticDisplay }}</span>
                 <span>{{ asset.reason }}</span>
               </div>
               <div class="chips">
@@ -276,7 +278,7 @@
       <p class="section-copy">这些内容是唯一图，但当前排序落在低段，所以不进精选，也倾向后续归档。</p>
       <section class="panel">
         <div class="grid">
-          {% for asset in lowPrioritySamplesAll %}
+          {% for asset in lowPrioritySamples %}
           <article class="asset">
             <img src="{{ asset.thumbPath }}" alt="{{ asset.fileName }}" />
             <div class="asset-body">
@@ -285,7 +287,7 @@
                 <span>当前: {{ asset.grade }} / {{ asset.currentAction }}</span>
                 <span>建议: {{ asset.proposedAction }}</span>
                 <span>手搓分: {{ '%.3f'|format(asset.rawScore) }}</span>
-                <span>审美分: {{ '%.3f'|format(asset.aestheticScore) }}</span>
+                <span>审美分: {{ asset.aestheticDisplay }}</span>
                 <span>{{ asset.reason }}</span>
               </div>
               <div class="chips">
@@ -304,7 +306,7 @@
       <h2 id="duplicate" class="section-title">重复归并</h2>
       <p class="section-copy">这些内容被判定为重复并已下沉。每组会展示保留图和被并入的其它图，方便你快速判错。</p>
       <section class="duplicate-list">
-        {% for group in duplicateGroupsAll %}
+        {% for group in duplicateGroups %}
         <article class="panel">
           <div class="duplicate-head">
             <div>
@@ -324,7 +326,7 @@
                 <span>建议: {{ group.winner.proposedAction }}</span>
                 <span>当前: {{ group.winner.grade }} / {{ group.winner.currentAction }}</span>
                 <span>手搓分: {{ '%.3f'|format(group.winner.rawScore) }}</span>
-                <span>审美分: {{ '%.3f'|format(group.winner.aestheticScore) }}</span>
+                <span>审美分: {{ group.winner.aestheticDisplay }}</span>
                 <span>{{ group.winner.reason }}</span>
               </div>
               <div class="chips">
@@ -345,7 +347,7 @@
                 <div class="meta">
                   <span>建议: {{ asset.proposedAction }}</span>
                   <span>当前: {{ asset.grade }} / {{ asset.currentAction }}</span>
-                  <span>审美分: {{ '%.3f'|format(asset.aestheticScore) }}</span>
+                  <span>审美分: {{ asset.aestheticDisplay }}</span>
                   <span>{{ asset.reason }}</span>
                 </div>
                 <div class="chips">
@@ -364,7 +366,7 @@
       <p class="section-copy">这些内容因为文档/截图信号被直接下沉，不参与精选。</p>
       <section class="panel">
         <div class="grid">
-          {% for asset in negativeSamplesAll %}
+          {% for asset in negativeSamples %}
           <article class="asset">
             <img src="{{ asset.thumbPath }}" alt="{{ asset.fileName }}" />
             <div class="asset-body">
@@ -372,7 +374,7 @@
               <div class="meta">
                 <span>当前: {{ asset.grade }} / {{ asset.currentAction }}</span>
                 <span>建议: {{ asset.proposedAction }}</span>
-                <span>审美分: {{ '%.3f'|format(asset.aestheticScore) }}</span>
+                <span>审美分: {{ asset.aestheticDisplay }}</span>
                 <span>{{ asset.reason }}</span>
               </div>
               <div class="chips">

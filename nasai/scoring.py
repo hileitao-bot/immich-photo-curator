@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import json
 import subprocess
+import threading
 from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
-from typing import Dict, Iterable, List, Tuple
+from typing import Dict, Iterable, List, Optional, Tuple
 
+import httpx
 import numpy as np
 from PIL import Image
 
@@ -19,6 +21,8 @@ class VisionScorer:
         self.cache_dir = cache_dir
         self.helper_source = helper_source
         self.helper_binary = helper_binary
+        self._worker: Optional[subprocess.Popen[str]] = None
+        self._worker_lock = threading.Lock()
         self._ensure_helper()
 
     def _ensure_helper(self) -> None:
@@ -32,14 +36,80 @@ class VisionScorer:
             text=True,
         )
 
+    def close(self) -> None:
+        with self._worker_lock:
+            self._stop_worker_locked()
+
+    def _stop_worker_locked(self) -> None:
+        worker = self._worker
+        self._worker = None
+        if worker is None:
+            return
+        try:
+            if worker.stdin:
+                worker.stdin.close()
+        except Exception:
+            pass
+        try:
+            worker.terminate()
+            worker.wait(timeout=1.0)
+        except Exception:
+            try:
+                worker.kill()
+                worker.wait(timeout=1.0)
+            except Exception:
+                pass
+
+    def _worker_process(self) -> subprocess.Popen[str]:
+        with self._worker_lock:
+            if self._worker is not None and self._worker.poll() is None:
+                return self._worker
+            self._stop_worker_locked()
+            self._worker = subprocess.Popen(
+                [str(self.helper_binary), "--stdio"],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1,
+            )
+            return self._worker
+
     def analyze_path(self, image_path: Path) -> Dict:
-        result = subprocess.run(
-            [str(self.helper_binary), str(image_path)],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        return json.loads(result.stdout)
+        for attempt in range(2):
+            worker = self._worker_process()
+            try:
+                assert worker.stdin is not None
+                assert worker.stdout is not None
+                worker.stdin.write(f"{image_path}\n")
+                worker.stdin.flush()
+                response = worker.stdout.readline()
+            except (BrokenPipeError, OSError, ValueError) as exc:
+                with self._worker_lock:
+                    self._stop_worker_locked()
+                if attempt == 0:
+                    continue
+                raise RuntimeError(f"vision_probe worker IO failed: {exc}") from exc
+
+            if not response:
+                stderr_text = ""
+                if worker.stderr is not None:
+                    stderr_text = worker.stderr.read().strip()
+                with self._worker_lock:
+                    self._stop_worker_locked()
+                if attempt == 0:
+                    continue
+                raise RuntimeError(
+                    "vision_probe worker exited unexpectedly"
+                    + (f": {stderr_text}" if stderr_text else "")
+                )
+
+            payload = json.loads(response)
+            if payload.get("ok"):
+                return payload["result"]
+            raise RuntimeError(payload.get("error") or "vision_probe worker returned an empty error")
+
+        raise RuntimeError("vision_probe worker failed after retry")
 
     def score_asset(
         self,
@@ -144,6 +214,12 @@ class VisionScorer:
         exif_description = ((asset.get("exifInfo") or {}).get("description") or "")
         return " ".join([chinese, english_labels, ocr, file_name, path, exif_description]).strip()
 
+    def __del__(self) -> None:
+        try:
+            self.close()
+        except Exception:
+            pass
+
 
 def run_scoring(
     conn,
@@ -152,35 +228,66 @@ def run_scoring(
     rows: Iterable,
     *,
     finalize: bool = True,
-) -> int:
-    processed = 0
+) -> Dict[str, int]:
+    stats = {
+        "processed": 0,
+        "permanentFailures": 0,
+        "transientFailures": 0,
+    }
     for row in rows:
         asset_id = row["asset_id"]
         cache_path = scorer.cache_dir / f"{asset_id}.webp"
-        if cache_path.exists():
-            thumb_bytes = cache_path.read_bytes()
-        else:
-            thumb_bytes = client.thumbnail(asset_id)
-            cache_path.write_bytes(thumb_bytes)
-        asset_payload = json.loads(row["metadata_json"])
-        raw_score, tags, labels, ocr_text, search_text = scorer.score_asset(
-            asset_payload, cache_path, thumb_bytes
-        )
-        db.persist_score(
-            conn,
-            asset_id=asset_id,
-            thumbnail_cache_path=str(cache_path),
-            raw_score=raw_score,
-            chinese_tags=tags,
-            scored_at=datetime.now(timezone.utc).isoformat(),
-            vision_labels=labels,
-            ocr_text=ocr_text,
-            search_text=search_text,
-        )
-        processed += 1
+        attempted_at = datetime.now(timezone.utc).isoformat()
+        db.record_score_attempt(conn, asset_id, attempted_at)
+        try:
+            if cache_path.exists():
+                thumb_bytes = cache_path.read_bytes()
+            else:
+                thumb_bytes = client.thumbnail(asset_id)
+                cache_path.write_bytes(thumb_bytes)
+            asset_payload = json.loads(row["metadata_json"])
+            raw_score, tags, labels, ocr_text, search_text = scorer.score_asset(
+                asset_payload, cache_path, thumb_bytes
+            )
+            db.persist_score(
+                conn,
+                asset_id=asset_id,
+                thumbnail_cache_path=str(cache_path),
+                raw_score=raw_score,
+                chinese_tags=tags,
+                scored_at=attempted_at,
+                vision_labels=labels,
+                ocr_text=ocr_text,
+                search_text=search_text,
+            )
+            stats["processed"] += 1
+        except Exception as exc:
+            permanent = _is_permanent_scoring_error(exc)
+            db.mark_score_failure(
+                conn,
+                asset_id=asset_id,
+                error_message=_error_message(exc),
+                failed_at=attempted_at,
+                permanent=permanent,
+            )
+            key = "permanentFailures" if permanent else "transientFailures"
+            stats[key] += 1
+            continue
     if finalize:
         finalize_scores(conn, scorer=scorer)
-    return processed
+    return stats
+
+
+def _is_permanent_scoring_error(exc: Exception) -> bool:
+    if isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code in {404, 410}:
+        return True
+    message = str(exc).lower()
+    return "too small in at least one dimension" in message
+
+
+def _error_message(exc: Exception, limit: int = 500) -> str:
+    message = str(exc).strip() or exc.__class__.__name__
+    return message[:limit]
 
 
 def finalize_scores(

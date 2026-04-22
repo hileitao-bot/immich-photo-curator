@@ -23,14 +23,32 @@
 uv run python benchmark/run_hybrid_trial.py
 ```
 
+如果只想做样本验证，可以加限制参数：
+
+```bash
+uv run python benchmark/run_hybrid_trial.py --image-limit 1500 --video-limit 300
+```
+
 会生成：
 
 - `benchmark/results/hybrid/index.html`
 - `benchmark/results/hybrid/filtered.html`
 - `benchmark/results/hybrid/actions.json`
 - `benchmark/results/hybrid/system_buffer/`
+- `benchmark/results/hybrid/progress.json`
 
 这些输出都是本地产物，不应该进入公开仓库。
+
+## 全量优化点
+
+为了让 30 万级图库可跑，当前脚本不再做“整库重算一遍”的做法，而是：
+
+1. 直接复用 `nasai.db` 里已有的 burst 去重结果
+2. 审美缓存按 asset 级别增量命中，而不是“缓存不完整就全量重算”
+3. 审美分只补算高价值候选图，其余位置使用已有分位和手搓分做回退
+4. 页面只渲染抽样预览；真正需要全量导出的只有系统缓冲目录和动作清单
+
+`progress.json` 会持续记录当前阶段、候选数、缓存命中数和本轮新增计算数。
 
 ## 图片分层
 
@@ -93,3 +111,13 @@ Hybrid 报告本身只生成本地结果。
 - 先数据库备份
 - 再按你确认过的规则同步标签、相册或可见性
 - 始终不写源文件
+
+## 日常增量
+
+全量跑通后，日常不需要再手动拼命令。直接执行：
+
+```bash
+uv run nasai incremental
+```
+
+它会自动串起最近页发现、新资产补评分、全量 dedupe/hybrid 刷新，以及最后的安全写回。
